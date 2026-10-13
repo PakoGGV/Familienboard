@@ -1462,7 +1462,8 @@ function webappPanel(){
     <p class="hint">Adresse und Kennwort aus der Anleitung (Google Apps Script). Sie werden nur in eurer Datenbank gespeichert.</p>
     <div class="row"><div class="field" style="flex:3 1 260px"><label for="wScript">Adresse des Skripts</label><input id="wScript" value="${esc(UI.draft.wScript ?? pv.scriptUrl ?? '')}" placeholder="https://script.google.com/macros/s/…/exec"></div></div>
     <div class="row"><div class="field" style="flex:2 1 200px"><label for="wToken">Kennwort</label><input id="wToken" type="password" value="${esc(UI.draft.wToken ?? pv.token ?? '')}"></div>
-      <button class="btn primary" data-act="wsave" style="align-self:flex-end">speichern</button></div>
+      <button class="btn primary" data-act="wsave" style="align-self:flex-end">speichern</button><button class="btn" data-act="wtest" style="align-self:flex-end">Verbindung testen</button></div>
+    ${UI.wTest ? `<p class="note"><b>${esc(UI.wTest)}</b></p>` : ''}
     <h3>Daten</h3>
     <div class="row"><button class="btn" data-act="wexport">Daten sichern</button>
       <span class="btn file-btn">Daten einspielen<input type="file" id="wImport" accept="application/json,.json" aria-label="Datei mit Daten wählen"></span></div>
@@ -1852,8 +1853,9 @@ app.addEventListener('click', async e => {
       if (!UI.parentOk) return;
       const scriptUrl = (D.wScript ?? (FB.priv().scriptUrl || '')).trim(), token = (D.wToken ?? (FB.priv().token || '')).trim();
       if (scriptUrl && !/^https:\/\/script\.google\.com\//.test(scriptUrl)) { toast('Die Adresse muss mit https://script.google.com/ beginnen.'); return; }
-      if (await safe(() => db.doc('private/config').set({scriptUrl, token}), 'Kalender-Verbindung gespeichert')) { D.wScript = undefined; D.wToken = undefined; }
+      if (await safe(() => db.doc('private/config').set({scriptUrl, token}), 'Kalender-Verbindung gespeichert')) { D.wScript = undefined; D.wToken = undefined; FB.setPriv({scriptUrl, token}); FB.reloadPriv(); UI.wTest = await FB.testCal(); render(); }
       return; }
+    case 'wtest': { if (!UI.parentOk) return; UI.wTest = 'wird geprüft …'; render(); UI.wTest = await FB.testCal(); render(); return; }
     case 'wexport': {
       if (!UI.parentOk) return;
       try {

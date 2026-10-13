@@ -70,8 +70,9 @@
       const changed = d.scriptUrl !== PRIV.scriptUrl || d.token !== PRIV.token;
       PRIV.scriptUrl = String(d.scriptUrl || ''); PRIV.token = String(d.token || ''); PRIV.loaded = true;
       if (changed) refreshAllCal();
-    }, () => { PRIV.loaded = true; refreshAllCal(); });
+    }, () => { PRIV.loaded = true; privUnsub = null; setTimeout(watchPrivate, 8000); });
   }
+  function reloadPrivate(){ if (privUnsub) { try { privUnsub(); } catch (e) {} privUnsub = null; } watchPrivate(); }
 
   /* ---------- „mcp“: Kalender + Wetter ---------- */
   const GCAL = 'Google Calendar', WXS = 'AccuWeather';
@@ -82,9 +83,12 @@
     if (!PRIV.loaded) await new Promise(r => setTimeout(r, 800));
     if (!PRIV.scriptUrl) throw mkErr('server_not_connected', 'Kalender-Verbindung fehlt');
     const q = new URLSearchParams({...params, token: PRIV.token});
-    const res = await fetch(PRIV.scriptUrl + (PRIV.scriptUrl.includes('?') ? '&' : '?') + q.toString(), {redirect: 'follow'});
+    let res;
+    try { res = await fetch(PRIV.scriptUrl + (PRIV.scriptUrl.includes('?') ? '&' : '?') + q.toString(), {redirect: 'follow'}); }
+    catch (e) { throw mkErr('upstream_error', 'Das Skript ist nicht erreichbar. Ist die Bereitstellung auf „Zugriff: Jeder“ gestellt?'); }
     if (!res.ok) throw mkErr('upstream_error', 'HTTP ' + res.status);
-    const j = await res.json();
+    let j;
+    try { j = await res.json(); } catch (e) { throw mkErr('upstream_error', 'Das Skript liefert keine Termine. Ist die Bereitstellung auf „Zugriff: Jeder“ gestellt?'); }
     if (j && j.error) throw mkErr(j.error === 'token' ? 'needs_reauth' : 'upstream_error', j.error);
     return j;
   }
@@ -252,6 +256,10 @@
   };
   window.FB = {signOut: () => fauth && fauth.signOut().then(() => location.reload()), email: () => user && user.email,
     priv: () => ({...PRIV}),
+    reloadPriv: () => reloadPrivate(),
+    setPriv: d => { PRIV.scriptUrl = String(d.scriptUrl || ''); PRIV.token = String(d.token || ''); PRIV.loaded = true; refreshAllCal(); },
+    testCal: async () => { try { await scriptCall({action: 'ping'}); const j = await scriptCall({action: 'calendars'}); return `Verbindung klappt: ${(j.calendars || []).length} Kalender gefunden.`; }
+      catch (e) { return e.code === 'needs_reauth' ? 'Das Kennwort stimmt nicht mit dem im Skript überein.' : e.code === 'server_not_connected' ? 'Es ist noch keine Skript-Adresse gespeichert.' : 'Fehler: ' + e.message; } },
     exportAll: async names => { const out = {}; for (const n of names) { const s = await fdb.collection(n).get(); out[n] = {}; s.forEach(d => { out[n][d.id] = d.data(); }); } return out; },
     importAll: async data => { let n = 0; for (const [c, docs] of Object.entries(data || {})) { for (const [id, d] of Object.entries(docs || {})) { await fdb.collection(c).doc(id).set(d); n++; } } return n; },
   };
