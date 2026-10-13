@@ -98,3 +98,11 @@ Melde dich dafür mit dem Google-Konto an, in dem die Familienkalender sichtbar 
 
 - Oma öffnet die Adresse im Browser und meldet sich mit ihrer E-Mail-Adresse und ihrem Passwort an. Ein Claude-Konto braucht sie nicht mehr.
 - Sie sieht automatisch die Oma-Ansicht.
+
+## 7. Konto für ein Kind (z. B. Charlottes Handy)
+
+1. Lege das Konto in Firebase unter **Authentication → Nutzer** an.
+2. Trage die E-Mail-Adresse in den **Firestore-Regeln** in die Liste bei `allowed()` ein und klicke auf **Veröffentlichen**.
+3. Das Kind meldet sich einmal auf seinem Gerät an. Es sieht zuerst die Oma-Ansicht.
+4. Gehe auf dem Flur-iPad zu **Eltern → Zugänge** und tippe beim neuen Konto auf **nur Charlotte** (bzw. **nur Helene**).
+5. Danach sieht das Konto nur noch: eigene Aufgaben und Punkte, eigene Termine, Belohnungen, Essen und „für Mama & Papa“. Den Eltern-Bereich gibt es dort nicht.

@@ -553,7 +553,9 @@ const omaP = () => ({...OMA, ...(S.adults.find(a => a.id === 'oma') || {}), id:'
 const personById = id => people().find(p => p.id === id) || (id === 'oma' ? omaP() : id === 'opa' ? {...OPA, ...(S.adults.find(a => a.id === 'opa') || {}), id:'opa'} : undefined);
 /* Rolle: Besitzer des Boards (Flur-iPad) sieht alles, andere Konten zuerst die Oma-Ansicht */
 const ME = {user:null, owner:true, id:null};
-const role = () => (!ME.user || ME.owner) ? 'full' : ((S.viewers.find(v => v.id === ME.id) || {}).role === 'full' ? 'full' : 'oma');
+const myView = () => S.viewers.find(v => v.id === ME.id) || {};
+const role = () => { if (!ME.user || ME.owner) return 'full'; const v = myView(); return v.role === 'full' ? 'full' : v.role === 'kid' && kidById(v.kid) ? 'kid' : 'oma'; };
+const myKid = () => role() === 'kid' ? kidById(myView().kid) : null;
 const shareDoc = id => S.share.find(x => x.id === id) || null;
 const hm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const toMin = s => { const m = String(s || '').match(/(\d{1,2}):(\d{2})/); return m ? num(m[1])*60 + num(m[2]) : null; };
@@ -964,7 +966,7 @@ function packCheck(k, tmrView){
 const DISHES = [['🥞','Pfannkuchen'],['🫘','Schnibbelbohnen mit Gehacktem'],['🥕','Möhreneintopf'],['🫛','Erbsensuppe'],['🍲','Gulasch'],['🧀','Lasagne'],['🍝','Nudeln mit Bolognese'],['🍜','Nudeln'],['🥔','Kartoffeln']];
 const mealScore = m => Object.values(m.votes || {}).reduce((a,v) => a + num(v), 0);
 const mealsOn = key => S.meals.filter(m => m.date === key).sort((a,b) => (b.pick ? 1 : 0) - (a.pick ? 1 : 0) || mealScore(b) - mealScore(a) || num(a.at) - num(b.at));
-const voterId = oma => oma ? 'oma' : (UI.voter && personById(UI.voter) ? UI.voter : null);
+const voterId = oma => oma ? 'oma' : myKid() ? myKid().id : (UI.voter && personById(UI.voter) ? UI.voter : null);
 const eatText = m => { const e = Array.isArray(m.eat) ? m.eat : []; if (e.includes('alle')) return 'für alle'; const n = e.map(id => (kidById(id) || {}).name).filter(Boolean); return n.length ? 'für ' + n.join(' und ') : ''; };
 const GUESTS = [['oma','Oma'],['opa','Opa']];
 const guestText = m => { const g = GUESTS.filter(([id]) => (Array.isArray(m.guests) ? m.guests : []).includes(id)).map(([,n]) => n); return g.length ? 'mit ' + g.join(' und ') : ''; };
@@ -1003,6 +1005,7 @@ function viewMeals(oma){
   const head = `<div class="panel"><div class="row" style="justify-content:space-between"><h2>Essensplan</h2>
       <div class="row" style="gap:6px"><button class="btn small ${wk === 0 ? 'sel' : ''}" data-act="mweek" data-id="0">die nächsten 7 Tage</button><button class="btn small ${wk === 1 ? 'sel' : ''}" data-act="mweek" data-id="1">die Woche danach</button></div></div>
     ${oma ? '<p class="hint">Trag ein, was du kochst. Alle können mit 👍 oder 👎 sagen, ob sie sich darauf freuen.</p>'
+      : myKid() ? `<p class="hint">Mit 👍 oder 👎 sagst du, ob du dich auf ein Essen freust.</p>`
       : `<p class="hint">Wer stimmt ab?</p><div class="row" style="gap:6px">${voters.map(p => `<button class="btn small ${me === p.id ? 'sel' : ''}" style="--kid:${kidColor(p)}" data-act="mvoter" data-id="${esc(p.id)}">${mini(p)}${esc(p.name)}</button>`).join('')}</div>`}</div>`;
   const box = d => {
     const key = dkey(d), list = mealsOn(key), open = UI.mealDay === key;
@@ -1147,6 +1150,27 @@ function omaHeader(){
     <div class="row" style="gap:14px"><div class="date"><span class="dow">${WDL[isoDow(now)-1]}</span><span class="dm">${now.toLocaleDateString('de-DE',{day:'numeric',month:'long',year:'numeric'})}</span></div>
       ${w && w.temperature ? `<span class="wx-chip"><span class="ic" aria-hidden="true">${wxIcon(w.iconCode)}</span>${esc(w.temperature)}${w.tip ? `<small>${esc(w.tip)}</small>` : ''}</span>` : ''}</div>
     <nav class="tabs" aria-label="Bereiche">${tab('oma','Übersicht')}${tab('essen','Essen')}${tab('auftrag','Aufgaben')}${tab('omapin','Eltern')}</nav></header>`;
+}
+/* ---------- Kinder-Ansicht (eigenes Konto, z. B. Handy) ---------- */
+function kidHeader(){
+  const now = new Date(), w = shareDoc('wx'), k = myKid();
+  const tab = (id, label) => `<button class="tab" data-act="tab" data-id="${id}" ${UI.tab === id ? 'aria-current="page"' : ''}>${label}</button>`;
+  return `<header class="top">
+    <div class="row" style="gap:14px"><div class="date"><span class="dow">${WDL[isoDow(now)-1]}</span><span class="dm">${now.toLocaleDateString('de-DE',{day:'numeric',month:'long',year:'numeric'})}</span></div>
+      ${w && w.temperature ? `<span class="wx-chip"><span class="ic" aria-hidden="true">${wxIcon(w.iconCode)}</span>${esc(w.temperature)}${w.tip ? `<small>${esc(w.tip)}</small>` : ''}</span>` : ''}</div>
+    <nav class="tabs" aria-label="Bereiche">${tab('heute','heute')}${tab('essen','Essen')}${tab('belohnungen','Belohnungen')}${tab('eltern-liste','für Mama &amp; Papa')}</nav></header>`;
+}
+function kidEvents(k){
+  const today = new Date(), tk = dkey(today), ev = shareDoc('kidevents');
+  const list = (ev && Array.isArray(ev.list) ? ev.list : []).filter(e => e.day >= tk && (e.who || []).includes(k.id)).slice(0, 14);
+  const sd = d => d === tk ? 'heute' : d === dkey(addDays(today, 1)) ? 'morgen' : (x => `${WD[isoDow(x)-1]} ${x.getDate()}.${x.getMonth()+1}.`)(new Date(d + 'T12:00:00'));
+  const rows = list.map((e, i) => { const first = i === 0 || list[i-1].day !== e.day;
+    return `<tr class="${first ? 'first' : ''}"><td class="d">${first ? esc(sd(e.day)) : ''}</td><td class="t">${e.allDay ? 'ganzt.' : esc(e.time)}</td><td>${esc(e.title)}${e.until ? ` <span class="note">${esc(e.until)}</span>` : ''}</td></tr>`; }).join('');
+  return `<div class="panel" style="--kid:${kidColor(k)}"><h2>meine Termine</h2>${rows ? `<table class="evtab"><tbody>${rows}</tbody></table>` : '<p class="note">Keine Termine in den nächsten Tagen.</p>'}</div>`;
+}
+function viewKidHome(){
+  const k = myKid(); if (!k) return '';
+  return `<div class="today kidhome"><div class="main">${kidCard(k)}</div><div class="side">${kidEvents(k)}${mealPanel()}</div></div>`;
 }
 function viewOma(){
   const today = new Date(), tk = dkey(today), days = [];
@@ -1383,6 +1407,7 @@ function kidPicker(act, current){
 function viewRewards(){
   const kids = sortKids();
   if (!kids.length) return viewToday();
+  if (myKid()) UI.rewardKid = myKid().id;
   if (!UI.rewardKid || !kidById(UI.rewardKid)) UI.rewardKid = kids[0].id;
   const k = kidById(UI.rewardKid), bal = balance(k.id);
   const mine = S.vouchers.filter(v => (v.kid === k.id || v.joint) && ['requested','stock','useRequested'].includes(v.status)).sort((a,b) => num(a.at)-num(b.at));
@@ -1411,7 +1436,7 @@ function viewRewards(){
       <button class="btn ${can ? 'primary' : ''}" data-act="vbuy" data-id="${esc(r.id)}" ${can ? '' : 'disabled'}>${can ? 'kaufen' : `noch ${num(r.cost)-bal} Punkte`}</button></div>`;
   }).join('') : '<p class="hint">Noch keine Belohnungen angelegt.</p>';
   return `<div class="panel" style="--kid:${kidColor(k)}">
-      <h2>Wer schaut?</h2>${kidPicker('rkid', k.id)}
+      ${myKid() ? `<h2>${esc(k.name)}</h2>` : `<h2>Wer schaut?</h2>${kidPicker('rkid', k.id)}`}
       <p style="margin:0;font-size:1.2rem"><b class="cost" style="color:var(--kid);font-size:2rem">${bal}</b> Punkte auf dem Konto</p>
     </div>
     <div class="panel" style="--kid:${kidColor(k)}"><h2>mein Gutschein-Vorrat</h2>${vouchers}</div>
@@ -1422,6 +1447,7 @@ function viewParentList(){
   const s = settings(), due = allowanceDue();
   const open = S.parent.filter(p => !p.done).sort((a,b) => String(a.due || '').localeCompare(String(b.due || '')) || num(a.at)-num(b.at));
   const done = S.parent.filter(p => p.done).sort((a,b) => num(b.doneAt)-num(a.doneAt)).slice(0,5);
+  if (myKid()) UI.askFrom = myKid().id;
   const from = UI.askFrom;
   const tpl = [...S.ptpl].filter(t => t.area !== 'arbeit' && (!t.for || t.for === UI.askFor)).sort((a,b) => String(a.title).localeCompare(b.title));
   const li = p => `<li class="item ${p.done ? 'done' : ''}"><button class="check" data-act="ptoggle" data-id="${esc(p.id)}" aria-label="${p.done ? 'wieder öffnen' : 'erledigt'}">${p.done ? '✓' : ''}</button>
@@ -1434,9 +1460,9 @@ function viewParentList(){
       <p class="hint">Für wann?</p>
       ${dueButtons(UI.askDue)}
       ${tpl.length ? `<p class="hint">antippen und eintragen</p><div class="chips">${tpl.map(t => `<button class="btn chip" data-act="ptpl" data-id="${esc(t.id)}"><span aria-hidden="true">${esc(t.emoji || '📌')}</span>${esc(t.title)}</button>`).join('')}</div>` : ''}
-      <p class="hint">Wer schreibt? (freiwillig)</p>
+      ${myKid() ? '' : `<p class="hint">Wer schreibt? (freiwillig)</p>
       <div class="row">${[...people(), omaP()].map(k => `<button class="btn ${from === k.id ? 'sel' : ''}" style="--kid:${kidColor(k)}" data-act="askfrom" data-id="${esc(k.id)}">${mini(k)}${esc(k.name)}</button>`).join('')}
-        <button class="btn ${from === 'familie' ? 'sel' : ''}" data-act="askfrom" data-id="familie">jemand anders</button></div>
+        <button class="btn ${from === 'familie' ? 'sel' : ''}" data-act="askfrom" data-id="familie">jemand anders</button></div>`}
       <div class="row"><div class="field" style="flex:3 1 240px"><label for="pText">oder selbst aufschreiben</label><input id="pText" maxlength="140" value="${esc(UI.draft.pText || '')}" placeholder="z. B. Bastelkleber kaufen"></div>
         <button class="btn primary" data-act="padd" style="align-self:flex-end">eintragen</button></div>
     </div>
@@ -1454,7 +1480,7 @@ function applyFonts(){
   const f = fontState(), r = document.documentElement.dataset;
   delete r.font; r.headfont = f.head; r.bodyfont = f.body;
   if (f.btn) r.btnfont = f.btn; else delete r.btnfont;
-  if (settings().theme === 'dunkel' && role() !== 'oma') r.theme = 'dunkel'; else delete r.theme;
+  if (settings().theme === 'dunkel' && role() === 'full') r.theme = 'dunkel'; else delete r.theme;
 }
 const fontSelect = (id, label, val, allowSame) => `<div class="row"><div class="field"><label for="${id}">Schrift: ${label}</label><select id="${id}">${(allowSame ? [['','wie die Texte'], ...FONTS] : FONTS).map(([v,l]) => `<option value="${v}" ${val === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>`;
 function viewPin(){
@@ -1481,10 +1507,10 @@ function webappPanel(){
 const ALL_COLLS = ['kids','adults','tasks','rewards','done','adjust','vouchers','parent','allow','ptpl','shop','atasks','adone','plans','muell','meals','todos','mensa','homeask','ktasks','pot','pack','depart','settings','share'];
 function accessList(){
   const others = S.seen.filter(x => x.id !== ME.id).sort((a,b) => num(b.at) - num(a.at));
-  const rows = others.map(x => { const r = (S.viewers.find(v => v.id === x.id) || {}).role === 'full' ? 'full' : 'oma';
+  const rows = others.map(x => { const v = S.viewers.find(y => y.id === x.id) || {}, r = v.role === 'full' ? 'full' : v.role === 'kid' && kidById(v.kid) ? 'kid:' + v.kid : 'oma';
     return `<li class="item"><span class="tx">${esc(x.name || 'unbekanntes Konto')}<br><span class="meta">zuletzt ${esc(new Date(num(x.at)).toLocaleDateString('de-DE'))}</span></span>
-      <button class="btn small ${r === 'oma' ? 'sel' : ''}" data-act="vrole" data-id="${esc(x.id)}|oma">Oma-Ansicht</button><button class="btn small ${r === 'full' ? 'sel' : ''}" data-act="vrole" data-id="${esc(x.id)}|full">ganzes Board</button></li>`; }).join('');
-  return `<p class="hint">Wer das Board mit einem eigenen Claude-Konto öffnet, sieht zuerst die Oma-Ansicht: Termine der Kinder, wann ihr zu Hause seid, Essensplan und Aufgaben verteilen. Eure eigenen Termine sind dort nicht zu sehen. Hier könnt ihr einem Konto das ganze Board freigeben.</p>
+      <button class="btn small ${r === 'oma' ? 'sel' : ''}" data-act="vrole" data-id="${esc(x.id)}|oma">Oma-Ansicht</button><button class="btn small ${r === 'full' ? 'sel' : ''}" data-act="vrole" data-id="${esc(x.id)}|full">ganzes Board</button>${sortKids().map(k => `<button class="btn small ${r === 'kid:' + k.id ? 'sel' : ''}" style="--kid:${kidColor(k)}" data-act="vrole" data-id="${esc(x.id)}|kid:${esc(k.id)}">nur ${esc(k.name)}</button>`).join('')}</li>`; }).join('');
+  return `<p class="hint">Wer sich mit einem eigenen Konto anmeldet, sieht zuerst die Oma-Ansicht: Termine der Kinder, wann ihr zu Hause seid, Essensplan und Aufgaben verteilen. Eure eigenen Termine sind dort nicht zu sehen. Hier könnt ihr einem Konto das ganze Board freigeben. Mit „nur …“ und dem Namen eines Kindes sieht ein Konto nur den Bereich dieses Kindes: Aufgaben, Punkte, Belohnungen, eigene Termine, Essen und „für Mama &amp; Papa“.</p>
     ${rows ? `<ul class="list">${rows}</ul>` : '<p class="note">Bisher hat noch niemand anderes das Board geöffnet.</p>'}`;
 }
 function viewParent(){
@@ -1616,17 +1642,20 @@ function render(){
   const y = window.scrollY;
   if (S.noDb) { app.innerHTML = `<div class="state"><h2>Familien-Board</h2><p>Das Board kann seine Daten gerade nicht laden. Bitte anmelden und die Seite neu öffnen.</p></div>`; return; }
   if (!S.ready) return;
-  const isOma = role() === 'oma';
-  if (!isOma) startMcp();
+  const R = role(), isOma = R === 'oma', isKid = R === 'kid', lite = R !== 'full';
+  if (!lite) startMcp();
+  if (lite) UI.rest = false;
   applyFonts();
-  document.documentElement.classList.toggle('night', !!(UI.rest && !isOma && nightNow()));
-  document.documentElement.classList.toggle('resting', !!(UI.rest && !isOma));
-  if (UI.rest && !isOma) { app.className = 'rest'; app.style.removeProperty('--kid'); document.documentElement.style.removeProperty('--tint'); app.innerHTML = viewRest(); return; }
-  const views = isOma ? {oma:viewOma, essen:() => viewMeals(true), auftrag:viewOmaTasks, omapin:viewPin}
+  document.documentElement.classList.toggle('night', !!(UI.rest && !lite && nightNow()));
+  document.documentElement.classList.toggle('resting', !!(UI.rest && !lite));
+  if (UI.rest && !lite) { app.className = 'rest'; app.style.removeProperty('--kid'); document.documentElement.style.removeProperty('--tint'); app.innerHTML = viewRest(); return; }
+  const views = isKid ? {heute:viewKidHome, essen:() => viewMeals(false), belohnungen:viewRewards, 'eltern-liste':viewParentList}
+    : isOma ? {oma:viewOma, essen:() => viewMeals(true), auftrag:viewOmaTasks, omapin:viewPin}
     : {heute:viewToday, essen:() => viewMeals(false), belohnungen:viewRewards, 'eltern-liste':viewParentList, eltern:viewParent, wetter:viewWeather};
   if (!views[UI.tab]) UI.tab = isOma ? 'oma' : 'heute';
-  app.className = UI.tab === 'heute' ? 'fit' : '';
-  if (UI.tab === 'heute') {
+  app.className = UI.tab === 'heute' && !isKid ? 'fit' : '';
+  if (isKid) UI.person = myKid().id;
+  if (UI.tab === 'heute' || isKid) {
     const ps = people(); if (!UI.person || !personById(UI.person)) UI.person = ps[0] && ps[0].id;
     const c = kidColor(personById(UI.person));
     app.style.setProperty('--kid', c); document.documentElement.style.setProperty('--tint', c);
@@ -1634,7 +1663,7 @@ function render(){
   const keepScroll = {};
   app.querySelectorAll('.side,.main').forEach(el => { keepScroll[el.className] = el.scrollTop; });
   try {
-    app.innerHTML = (isOma ? omaHeader() : header()) + (S.readOnly ? `<p class="hint">${isOma ? 'Du kannst das Board nur ansehen. Für Einträge bitte Nils fragen, ob er dir Schreibrechte gibt.' : 'Dieses Gerät kann das Board nur ansehen.'}</p>` : '') + views[UI.tab]();
+    app.innerHTML = (isKid ? kidHeader() : isOma ? omaHeader() : header()) + (S.readOnly ? `<p class="hint">${isOma ? 'Du kannst das Board nur ansehen. Für Einträge bitte Nils fragen, ob er dir Schreibrechte gibt.' : 'Dieses Gerät kann das Board nur ansehen.'}</p>` : '') + views[UI.tab]();
     app.querySelectorAll('.side,.main').forEach(el => { if (keepScroll[el.className]) el.scrollTop = keepScroll[el.className]; });
   } catch (err) {
     console.error(err);
@@ -1894,7 +1923,8 @@ app.addEventListener('click', async e => {
       const [kind, oid] = id.split('|');
       if (UI.arm !== 'o' + oid) { UI.arm = 'o' + oid; render(); return; }
       UI.arm = null; await safe(() => col({k:'ktasks', t:'tasks', a:'atasks'}[kind] || 'parent').doc(oid).delete(), 'gelöscht'); return; }
-    case 'vrole': { if (!UI.parentOk) return; const [vid, r] = id.split('|'); await safe(() => col('viewers').doc(vid).set({role:r, at:Date.now()}), r === 'full' ? 'ganzes Board freigegeben' : 'Oma-Ansicht'); return; }
+    case 'vrole': { if (!UI.parentOk) return; const [vid, r] = id.split('|'), kid = r.startsWith('kid:') ? r.slice(4) : null;
+      await safe(() => col('viewers').doc(vid).set(kid ? {role:'kid', kid, at:Date.now()} : {role:r, at:Date.now()}), kid ? `nur ${(kidById(kid) || {}).name || 'Kind'}` : r === 'full' ? 'ganzes Board freigegeben' : 'Oma-Ansicht'); return; }
     case 'rjoint': D.rJoint = !D.rJoint; render(); return;
     case 'jpay': {
       const [rid, n] = id.split('|'), r = S.rewards.find(x => x.id === rid), k = UI.rewardKid; if (!r || !k) return;
@@ -1927,14 +1957,14 @@ app.addEventListener('click', async e => {
     case 'tweekly': D.tWeekly = !D.tWeekly; render(); return;
     case 'tschool': D.tSchool = !D.tSchool; render(); return;
     case 'tdemand': D.tOnDemand = !D.tOnDemand; if (D.tOnDemand) D.days = []; render(); return;
-    case 'rkid': UI.rewardKid = id; render(); return;
+    case 'rkid': if (myKid()) return; UI.rewardKid = id; render(); return;
     case 'vbuy': {
       const r = S.rewards.find(x => x.id === id), k = UI.rewardKid; if (!r || !k) return;
       if (balance(k) < num(r.cost)) { toast('Dafür reichen die Punkte noch nicht.'); return; }
       await safe(() => col('vouchers').doc(uid('v')).set({kid:k, rewardId:r.id, title:r.title, emoji:r.emoji || '', cost:num(r.cost), status:'requested', at:Date.now()}), 'Gekauft! Mama oder Papa bestätigen.');
       return; }
     case 'vuse': await safe(() => col('vouchers').doc(id).update({status:'useRequested', useAt:Date.now()}), 'Mama oder Papa wissen Bescheid.'); return;
-    case 'askfrom': UI.askFrom = id; render(); return;
+    case 'askfrom': if (myKid()) return; UI.askFrom = id; render(); return;
     case 'padd': {
       const text = (D.pText || '').trim(); if (!text) { toast('Bitte erst aufschreiben, was zu tun ist.'); return; }
       if (await saveTask({text, who:UI.askFor || 'beide', from:UI.askFrom && UI.askFrom !== 'familie' ? UI.askFrom : ''})) { D.pText = ''; UI.askFrom = null; render(); }
@@ -2092,7 +2122,7 @@ async function boot(){
   setInterval(() => { if (UI.tab === 'heute') requestRender(); }, 5*60000);
   setInterval(scheduleShare, 30*60000);
   setInterval(() => {
-    if (!S.ready || role() === 'oma') return;
+    if (!S.ready || role() !== 'full') return;
     const a = document.activeElement, typing = a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName);
     if (!UI.rest && Date.now() - lastTouch > REST_AFTER && !UI.parentOk && !typing) { UI.rest = true; UI.adultAdd = null; UI.pin = ''; render(); return; }
     if (UI.rest || (UI.tab === 'heute' && departList().length)) requestRender();
