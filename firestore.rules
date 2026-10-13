@@ -1,0 +1,29 @@
+rules_version = '2';
+// Familien-Board: Nur die hier eingetragenen E-Mail-Adressen dürfen lesen und schreiben.
+// Die Adressen bitte genau so eintragen, wie die Konten in Firebase → Authentication angelegt sind.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function allowed() {
+      return request.auth != null && request.auth.token.email in [
+        'FAMILIEN-KONTO@example.de',
+        'OMA@example.de'
+      ];
+    }
+    function full() {
+      return allowed() && get(/databases/$(database)/documents/viewers/$(request.auth.uid)).data.role == 'full';
+    }
+    // Adresse und Kennwort des Kalender-Skripts: nur für Konten mit „ganzem Board“
+    match /private/{doc} {
+      allow read, write: if full();
+    }
+    // Rollen: jeder darf seinen eigenen Eintrag anlegen; ändern dürfen nur Eltern-Konten
+    match /viewers/{uid} {
+      allow read: if allowed();
+      allow create: if allowed() && request.auth.uid == uid;
+      allow update, delete: if full() || (allowed() && request.auth.uid == uid);
+    }
+    match /{coll}/{doc} {
+      allow read, write: if allowed();
+    }
+  }
+}
