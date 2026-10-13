@@ -378,7 +378,7 @@ html.night #app{filter:brightness(.35)}
 /* WebApp: ganze Bildfläche nutzen */
 #app{max-width:none;padding-top:max(14px,env(safe-area-inset-top));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
 @media (min-width:900px) and (orientation:landscape){
-  html,body{height:100%;overflow:hidden}
+  html:has(#app.fit),html:has(#app.fit) body{height:100%;overflow:hidden}
   #app.fit{height:100vh;height:100dvh;max-width:none;padding-top:max(8px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom))}
   /* Querformat: Personenkarte links, Termine/Essen/Einkauf rechts */
   #app.fit .today{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}
