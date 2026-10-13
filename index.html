@@ -375,7 +375,15 @@ html.night #app{filter:brightness(.35)}
 .login-card input{min-height:52px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--ink);padding:0 12px;font:inherit}
 .login-err,.login-msg{color:var(--redo);margin:0;min-height:1.2em}
 .login-hint{color:var(--muted);margin:0}
-html{padding-top:env(safe-area-inset-top)}
+/* WebApp: ganze Bildfläche nutzen */
+#app{max-width:none;padding-top:max(14px,env(safe-area-inset-top));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+@media (min-width:900px) and (orientation:landscape){
+  html,body{height:100%;overflow:hidden}
+  #app.fit{height:100vh;height:100dvh;max-width:none;padding-top:max(8px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom))}
+  /* Querformat: Personenkarte links, Termine/Essen/Einkauf rechts */
+  #app.fit .today{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}
+  #app.fit .today .main{order:-1}
+}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 @media (prefers-reduced-motion:reduce){.bar span{transition:none}}
 </style>
