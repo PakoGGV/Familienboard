@@ -552,10 +552,11 @@ const OPA = {id:'opa', name:'Opa', emoji:'👴', color:'senf'};
 const omaP = () => ({...OMA, ...(S.adults.find(a => a.id === 'oma') || {}), id:'oma'});
 const personById = id => people().find(p => p.id === id) || (id === 'oma' ? omaP() : id === 'opa' ? {...OPA, ...(S.adults.find(a => a.id === 'opa') || {}), id:'opa'} : undefined);
 /* Rolle: Besitzer des Boards (Flur-iPad) sieht alles, andere Konten zuerst die Oma-Ansicht */
-const ME = {user:null, owner:true, id:null};
+const ME = {user:null, owner:true, id:null, email:''};
 const myView = () => S.viewers.find(v => v.id === ME.id) || {};
-const role = () => { if (!ME.user || ME.owner) return 'full'; const v = myView(); return v.role === 'full' ? 'full' : v.role === 'kid' && kidById(v.kid) ? 'kid' : 'oma'; };
-const myKid = () => role() === 'kid' ? kidById(myView().kid) : null;
+const kidByMail = () => ME.email ? S.kids.find(k => String(k.email || '').trim().toLowerCase() === ME.email) : null;
+const role = () => { if (!ME.user || ME.owner) return 'full'; const v = myView(); if (v.role === 'full') return 'full'; if (kidByMail() || (v.role === 'kid' && kidById(v.kid))) return 'kid'; return 'oma'; };
+const myKid = () => role() === 'kid' ? (kidByMail() || kidById(myView().kid)) : null;
 const shareDoc = id => S.share.find(x => x.id === id) || null;
 const hm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const toMin = s => { const m = String(s || '').match(/(\d{1,2}):(\d{2})/); return m ? num(m[1])*60 + num(m[2]) : null; };
@@ -976,19 +977,19 @@ const nameList = a => a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') +
 const cookText = m => { const n = cooksOf(m).map(id => (personById(id) || {}).name).filter(Boolean); return n.length ? `${nameList(n)} ${n.length > 1 ? 'kochen' : 'kocht'}` : ''; };
 const mealWho = m => [cookText(m) + (m.by === 'oma' && eatText(m) ? ' ' + eatText(m) : ''), m.by && m.by !== 'oma' && personById(m.by) ? `Vorschlag von ${personById(m.by).name}` : (!cookText(m) ? 'Vorschlag' : ''), m.by !== 'oma' ? guestText(m) : ''].filter(Boolean).join(' · ');
 function mealRow(m, oma){
-  const me = voterId(oma), v = num((m.votes || {})[me]);
+  const me = voterId(oma), v = num((m.votes || {})[me]), kid = !!myKid();
   const by = val => Object.entries(m.votes || {}).filter(([,x]) => num(x) === val).map(([id]) => personById(id)).filter(Boolean);
   const ups = by(1), downs = by(-1);
   return `<div class="meal ${m.pick ? 'pick' : ''}"><div class="meal-top"><span aria-hidden="true" style="font-size:1.5rem">${esc(m.emoji || '🍽️')}</span>
     <span class="tx">${esc(m.text)}<span class="meta">${esc(mealWho(m))}${m.pick ? ' · das gibt’s' : ''}</span></span></div>
-    ${!oma || m.by === 'oma' ? `<div class="eat"><span class="lbl">Wer kocht?</span>${cookPeople().map(p => { const on = cooksOf(m).includes(p.id); return `<button class="btn small ${on ? 'sel' : ''}" style="--kid:${kidColor(p)}" data-act="mcook" data-id="${esc(m.id)}|${esc(p.id)}" aria-pressed="${on}">${oma ? '' : mini(p)}${esc(p.name)}</button>`; }).join('')}</div>` : ''}
+    ${!kid && (!oma || m.by === 'oma') ? `<div class="eat"><span class="lbl">Wer kocht?</span>${cookPeople().map(p => { const on = cooksOf(m).includes(p.id); return `<button class="btn small ${on ? 'sel' : ''}" style="--kid:${kidColor(p)}" data-act="mcook" data-id="${esc(m.id)}|${esc(p.id)}" aria-pressed="${on}">${oma ? '' : mini(p)}${esc(p.name)}</button>`; }).join('')}</div>` : ''}
     ${oma && m.by === 'oma' ? `<div class="eat"><span class="lbl">Wer isst mit?</span>${[...sortKids().map(k => [k.id, k.name]), ['alle', 'alle']].map(([id, nm]) => { const on = (Array.isArray(m.eat) ? m.eat : []).includes(id); return `<button class="btn small ${on ? 'sel' : ''}" data-act="meat" data-id="${esc(m.id)}|${esc(id)}" aria-pressed="${on}">${esc(nm)}</button>`; }).join('')}</div>` : ''}
-    ${!oma && m.by !== 'oma' ? `<div class="eat"><span class="lbl">Wer isst mit?</span>${GUESTS.map(([id, nm]) => { const on = (Array.isArray(m.guests) ? m.guests : []).includes(id); return `<button class="btn small ${on ? 'sel' : ''}" data-act="mguest" data-id="${esc(m.id)}|${id}" aria-pressed="${on}" style="--kid:${kidColor(personById(id))}">${mini(personById(id))}${nm}</button>`; }).join('')}</div>` : ''}
+    ${!kid && !oma && m.by !== 'oma' ? `<div class="eat"><span class="lbl">Wer isst mit?</span>${GUESTS.map(([id, nm]) => { const on = (Array.isArray(m.guests) ? m.guests : []).includes(id); return `<button class="btn small ${on ? 'sel' : ''}" data-act="mguest" data-id="${esc(m.id)}|${id}" aria-pressed="${on}" style="--kid:${kidColor(personById(id))}">${mini(personById(id))}${nm}</button>`; }).join('')}</div>` : ''}
     <div class="meal-act"><button class="vote ${v > 0 ? 'on' : ''}" data-act="mvote" data-id="${esc(m.id)}|1" aria-label="mag ich" ${me ? '' : 'disabled'}>👍 ${ups.length || ''}</button>
     <button class="vote ${v < 0 ? 'on' : ''}" data-act="mvote" data-id="${esc(m.id)}|-1" aria-label="mag ich nicht" ${me ? '' : 'disabled'}>👎 ${downs.length || ''}</button>
     ${ups.length ? (oma ? `<span>${ups.map(p => `<span class="nmchip" style="--kid:${kidColor(p)}">${esc(p.name)}</span>`).join('')}</span>` : `<span class="voters" aria-label="mögen das: ${esc(ups.map(p => p.name).join(', '))}">${ups.map(p => `<span style="--kid:${kidColor(p)}">${mini(p)}</span>`).join('')}</span>`) : ''}
-    <span class="push"><button class="btn small" data-act="mpick" data-id="${esc(m.id)}">${m.pick ? 'wieder offen' : 'das gibt’s'}</button>
-    <button class="btn no small" data-act="mdel" data-id="${esc(m.id)}">${UI.arm === 'm' + m.id ? 'wirklich löschen' : 'löschen'}</button></span></div></div>`;
+    <span class="push">${kid ? '' : `<button class="btn small" data-act="mpick" data-id="${esc(m.id)}">${m.pick ? 'wieder offen' : 'das gibt’s'}</button>`}
+    ${!kid || m.by === me ? `<button class="btn no small" data-act="mdel" data-id="${esc(m.id)}">${UI.arm === 'm' + m.id ? 'wirklich löschen' : 'löschen'}</button>` : ''}</span></div></div>`;
 }
 const MENSA_NAMES = ['Helene', 'Nils'];
 const mensaPeople = () => MENSA_NAMES.map(n => people().find(p => p.name === n)).filter(Boolean);
@@ -997,6 +998,9 @@ function mensaRow(key, d, oma){
   if (isoDow(d) > 5) return '';
   const on = mensaOn(key);
   if (oma) return on.length ? `<p class="note">🍽️ in der Mensa: ${esc(on.map(p => p.name).join(' und '))}</p>` : '';
+  const k = myKid();
+  if (k) { const mine = mensaPeople().find(p => p.id === k.id), a = mine && on.includes(mine), others = on.filter(p => p.id !== k.id);
+    return (others.length ? `<p class="note">🍽️ in der Mensa: ${esc(others.map(p => p.name).join(' und '))}</p>` : '') + (mine ? `<div class="eat"><span class="lbl">in der Mensa</span><button class="btn small ${a ? 'sel' : ''}" style="--kid:${kidColor(mine)}" data-act="mensa" data-id="${key}|${esc(mine.id)}" aria-pressed="${a}">${mini(mine)}${esc(mine.name)}</button></div>` : ''); }
   return `<div class="eat"><span class="lbl">in der Mensa</span>${mensaPeople().map(p => { const a = on.includes(p); return `<button class="btn small ${a ? 'sel' : ''}" style="--kid:${kidColor(p)}" data-act="mensa" data-id="${key}|${esc(p.id)}" aria-pressed="${a}">${mini(p)}${esc(p.name)}</button>`; }).join('')}</div>`;
 }
 function viewMeals(oma){
@@ -1167,6 +1171,26 @@ function kidEvents(k){
   const rows = list.map((e, i) => { const first = i === 0 || list[i-1].day !== e.day;
     return `<tr class="${first ? 'first' : ''}"><td class="d">${first ? esc(sd(e.day)) : ''}</td><td class="t">${e.allDay ? 'ganzt.' : esc(e.time)}</td><td>${esc(e.title)}${e.until ? ` <span class="note">${esc(e.until)}</span>` : ''}</td></tr>`; }).join('');
   return `<div class="panel" style="--kid:${kidColor(k)}"><h2>meine Termine</h2>${rows ? `<table class="evtab"><tbody>${rows}</tbody></table>` : '<p class="note">Keine Termine in den nächsten Tagen.</p>'}</div>`;
+}
+/* Kinder-Konto: nur Aktionen im eigenen Bereich */
+function kidAllowed(act, id){
+  const k = myKid(); if (!k) return true;
+  const me = k.id, [a, b] = String(id || '').split('|'), today = new Date();
+  switch (act) {
+    case 'tab': return ['heute','essen','belohnungen','eltern-liste'].includes(id);
+    case 'dayoff': case 'more': case 'plan': case 'mweek': case 'mday': case 'mdish': case 'madd': case 'mvote':
+    case 'askfor': case 'askdue': case 'askweekly': case 'ptpl': case 'padd': case 'vbuy': case 'jpay': case 'jbuy': return true;
+    case 'tick': return [today, addDays(today, 1)].some(d => tasksOn(me, d).some(t => t.id === id)) || S.tasks.some(t => t.id === id && t.kid === me && t.onDemand);
+    case 'xtick': return S.done.some(d => d.id === id && d.kid === me);
+    case 'xadd': return id === me;
+    case 'packtick': return a === me;
+    case 'todoadd': return a === me && (b === me || b === 'familie');
+    case 'todotoggle': { const t = S.todos.find(x => x.id === id); return !!t && (t.scope === me || t.scope === 'familie'); }
+    case 'mdel': return S.meals.some(m => m.id === id && m.by === me);
+    case 'mensa': return b === me;
+    case 'vuse': return S.vouchers.some(v => v.id === id && (v.kid === me || v.joint));
+    default: return false;
+  }
 }
 function viewKidHome(){
   const k = myKid(); if (!k) return '';
@@ -1445,15 +1469,16 @@ function viewRewards(){
 
 function viewParentList(){
   const s = settings(), due = allowanceDue();
-  const open = S.parent.filter(p => !p.done).sort((a,b) => String(a.due || '').localeCompare(String(b.due || '')) || num(a.at)-num(b.at));
-  const done = S.parent.filter(p => p.done).sort((a,b) => num(b.doneAt)-num(a.doneAt)).slice(0,5);
+  const kidMe = myKid();
+  const open = S.parent.filter(p => !p.done && (!kidMe || p.from === kidMe.id)).sort((a,b) => String(a.due || '').localeCompare(String(b.due || '')) || num(a.at)-num(b.at));
+  const done = kidMe ? S.parent.filter(p => p.done && p.from === kidMe.id).sort((a,b) => num(b.doneAt)-num(a.doneAt)).slice(0,3) : S.parent.filter(p => p.done).sort((a,b) => num(b.doneAt)-num(a.doneAt)).slice(0,5);
   if (myKid()) UI.askFrom = myKid().id;
   const from = UI.askFrom;
   const tpl = [...S.ptpl].filter(t => t.area !== 'arbeit' && (!t.for || t.for === UI.askFor)).sort((a,b) => String(a.title).localeCompare(b.title));
-  const li = p => `<li class="item ${p.done ? 'done' : ''}"><button class="check" data-act="ptoggle" data-id="${esc(p.id)}" aria-label="${p.done ? 'wieder öffnen' : 'erledigt'}">${p.done ? '✓' : ''}</button>
+  const li = p => `<li class="item ${p.done ? 'done' : ''}">${kidMe ? `<span class="check" aria-hidden="true">${p.done ? '✓' : ''}</span>` : `<button class="check" data-act="ptoggle" data-id="${esc(p.id)}" aria-label="${p.done ? 'wieder öffnen' : 'erledigt'}">${p.done ? '✓' : ''}</button>`}
      <span class="tx">${p.emoji ? esc(p.emoji) + ' ' : ''}${esc(p.text)}<br><span class="meta">für ${esc(FOR[p.for] || FOR.beide)}${p.due && !p.done ? ' · ' + esc(dueLabel(p).replace(/^für /, '')) : ''}${p.from && personById(p.from) ? ' · von ' + esc(personById(p.from).name) : ''}</span></span>
-     ${p.done ? `<button class="btn small" data-act="pdel" data-id="${esc(p.id)}">${UI.arm === 'p' + p.id ? 'wirklich löschen' : 'löschen'}</button>` : ''}</li>`;
-  return `${due ? `<div class="banner due" role="status"><span aria-hidden="true">💶</span><span style="flex:1">${esc(s.allowanceText)}</span><button class="btn ok" data-act="allowdone">erledigt</button></div>` : ''}
+     ${p.done && !kidMe ? `<button class="btn small" data-act="pdel" data-id="${esc(p.id)}">${UI.arm === 'p' + p.id ? 'wirklich löschen' : 'löschen'}</button>` : ''}</li>`;
+  return `${due && !kidMe ? `<div class="banner due" role="status"><span aria-hidden="true">💶</span><span style="flex:1">${esc(s.allowanceText)}</span><button class="btn ok" data-act="allowdone">erledigt</button></div>` : ''}
     <div class="panel"><h2>Aufgabe für Mama &amp; Papa</h2>
       <p class="hint">Für wen?</p>
       <div class="row">${Object.entries(FOR).map(([key, label]) => `<button class="btn ${UI.askFor === key ? 'sel' : ''}" data-act="askfor" data-id="${key}">${esc(label)}</button>`).join('')}</div>
@@ -1466,7 +1491,7 @@ function viewParentList(){
       <div class="row"><div class="field" style="flex:3 1 240px"><label for="pText">oder selbst aufschreiben</label><input id="pText" maxlength="140" value="${esc(UI.draft.pText || '')}" placeholder="z. B. Bastelkleber kaufen"></div>
         <button class="btn primary" data-act="padd" style="align-self:flex-end">eintragen</button></div>
     </div>
-    <div class="panel"><h2>offen</h2>${open.length ? `<ul class="list">${open.map(li).join('')}</ul>` : '<p class="hint">Alles erledigt.</p>'}
+    <div class="panel"><h2>${kidMe ? 'von dir, noch offen' : 'offen'}</h2>${open.length ? `<ul class="list">${open.map(li).join('')}</ul>` : '<p class="hint">Alles erledigt.</p>'}
       ${done.length ? `<h3>zuletzt erledigt</h3><ul class="list">${done.map(li).join('')}</ul>` : ''}</div>`;
 }
 
@@ -1583,6 +1608,8 @@ function viewParent(){
   const kidForm = `<h3>${UI.editKid ? `${editingAdult ? 'Person' : 'Kind'} ändern` : 'Kind hinzufügen'}</h3>
     <div class="row"><div class="field" style="flex:0 1 90px"><label for="kEmoji">Symbol</label><input id="kEmoji" maxlength="4" value="${esc(UI.draft.kEmoji || '')}" placeholder="🦊"></div>
       <div class="field" style="flex:3 1 200px"><label for="kName">Name</label><input id="kName" maxlength="30" value="${esc(UI.draft.kName || '')}"></div></div>
+    ${editingAdult ? '' : `<div class="row"><div class="field" style="flex:3 1 260px"><label for="kMail">E-Mail-Adresse des eigenen Kontos (freiwillig)</label><input id="kMail" type="email" autocapitalize="off" value="${esc(UI.draft.kMail || '')}" placeholder="z. B. fürs eigene Handy"></div></div>
+    <p class="hint">Wer sich mit dieser Adresse anmeldet, sieht nur den Bereich dieses Kindes.</p>`}
     <div class="photo-edit" style="--kid:${COLORS[kc] || COLORS.blau}"><span class="avatar">${face({photo:UI.draft.kPhoto, emoji:UI.draft.kEmoji})}</span>
       <span class="btn small file-btn">Foto wählen<input type="file" id="kPhotoFile" accept="image/*" aria-label="Foto wählen"></span>
       ${UI.draft.kPhoto ? '<button class="btn small no" data-act="kphotodel">Foto entfernen</button>' : ''}</div>
@@ -1677,7 +1704,7 @@ function render(){
 function relock(){ clearTimeout(lockTimer); lockTimer = setTimeout(() => { UI.parentOk = false; UI.adultAdd = null; render(); }, 5*60*1000); }
 function resetTaskDraft(){ UI.editTask = null; Object.assign(UI.draft, {tTitle:'', tEmoji:'', tPoints:'5', tKid:'', days:[], tOnDemand:false, tInt:'1', tStart:'', tAnchor:'', tSchool:false, tWeekly:false, tWork:false}); }
 function resetRewardDraft(){ UI.editReward = null; Object.assign(UI.draft, {rTitle:'', rEmoji:'', rCost:'50', rJoint:false}); }
-function resetKidDraft(){ UI.editKid = null; Object.assign(UI.draft, {kName:'', kEmoji:'', kColor:'blau', kPhoto:''}); }
+function resetKidDraft(){ UI.editKid = null; Object.assign(UI.draft, {kName:'', kEmoji:'', kColor:'blau', kPhoto:'', kMail:''}); }
 function photoToDataUrl(file){
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file), img = new Image();
@@ -1748,6 +1775,7 @@ app.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   keepAwake();
   const act = b.dataset.act, id = b.dataset.id;
+  if (!kidAllowed(act, id)) return;
   if (!['pdel','tdel','rdel','vtdel','mdel','odel','wlogout'].includes(act)) UI.arm = null;
   if (UI.parentOk) relock();
   const D = UI.draft;
@@ -2059,13 +2087,13 @@ app.addEventListener('click', async e => {
     case 'kcolor': D.kColor = id; render(); return;
     case 'kedit': {
       const k = personById(id); if (!k) return;
-      UI.editKid = id; Object.assign(D, {kName:k.name, kEmoji:k.emoji || '', kColor:k.color || 'blau', kPhoto:k.photo || ''}); render(); return; }
+      UI.editKid = id; Object.assign(D, {kName:k.name, kEmoji:k.emoji || '', kColor:k.color || 'blau', kPhoto:k.photo || '', kMail:k.email || ''}); render(); return; }
     case 'kphotodel': D.kPhoto = ''; render(); return;
     case 'kcancel': resetKidDraft(); render(); return;
     case 'ksave': {
       const name = (D.kName || '').trim(); if (!name) { toast('Bitte einen Namen eingeben.'); return; }
       const kid = UI.editKid || uid('k'), prev = personById(kid), isAdult = !!ADULT_DEF[kid];
-      if (await safe(() => col(isAdult ? 'adults' : 'kids').doc(kid).set({name, emoji:(D.kEmoji || '').trim(), color:D.kColor || 'blau', photo:D.kPhoto || '', order:prev ? num(prev.order) : S.kids.length + 1}), 'gespeichert')) { resetKidDraft(); render(); }
+      if (await safe(() => col(isAdult ? 'adults' : 'kids').doc(kid).set({name, emoji:(D.kEmoji || '').trim(), color:D.kColor || 'blau', photo:D.kPhoto || '', order:prev ? num(prev.order) : S.kids.length + 1, ...(isAdult ? {} : {email:(D.kMail || '').trim().toLowerCase()})}), 'gespeichert')) { resetKidDraft(); render(); }
       return; }
     case 'ssave': {
       const pin = (D.sPin || '').trim();
@@ -2089,7 +2117,7 @@ async function boot(){
     if (user) {
       ME.user = user;
       try { ME.owner = (await user.isOwner()) !== false; } catch (e) { ME.owner = true; }
-      if (!ME.owner) { try { ME.id = await user.id(); } catch (e) {} if (!ME.id) ME.owner = true; }
+      if (!ME.owner) { try { ME.id = await user.id(); } catch (e) {} if (!ME.id) ME.owner = true; try { const m = await user.me(); ME.email = String((m && m.email) || '').trim().toLowerCase(); } catch (e) {} }
       if (typeof user.can === 'function') { const w = await user.can('data.write'); if (w === false) S.readOnly = true; }
     }
   } catch (e) {}

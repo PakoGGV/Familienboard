@@ -103,6 +103,5 @@ Melde dich dafür mit dem Google-Konto an, in dem die Familienkalender sichtbar 
 
 1. Lege das Konto in Firebase unter **Authentication → Nutzer** an.
 2. Trage die E-Mail-Adresse in den **Firestore-Regeln** in die Liste bei `allowed()` ein und klicke auf **Veröffentlichen**.
-3. Das Kind meldet sich einmal auf seinem Gerät an. Es sieht zuerst die Oma-Ansicht.
-4. Gehe auf dem Flur-iPad zu **Eltern → Zugänge** und tippe beim neuen Konto auf **nur Charlotte** (bzw. **nur Helene**).
-5. Danach sieht das Konto nur noch: eigene Aufgaben und Punkte, eigene Termine, Belohnungen, Essen und „für Mama & Papa“. Den Eltern-Bereich gibt es dort nicht.
+3. Gehe im Board zu **Eltern → Kinder**, tippe beim Kind auf **ändern**, trage die E-Mail-Adresse bei **E-Mail-Adresse des eigenen Kontos** ein und tippe auf **speichern**.
+4. Wer sich mit dieser Adresse anmeldet, sieht nur den Bereich dieses Kindes: eigene Aufgaben und Punkte, eigene Termine, Belohnungen, Essen (abstimmen und eigene Vorschläge) und „für Mama & Papa“ (nur die eigenen Einträge). Eintragungen bei Geschwistern oder Eltern sind dort nicht möglich, den Eltern-Bereich gibt es nicht.
