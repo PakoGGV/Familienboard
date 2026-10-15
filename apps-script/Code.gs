@@ -17,6 +17,7 @@ function doGet(e) {
     if (p.action === 'calendars') return json({calendars: listCalendars()});
     if (p.action === 'events') return json({events: listEvents(String(p.ids || '').split(',').filter(String), p.start, p.end)});
     if (p.action === 'ping') return json({ok: true});
+    if (String(p.action || '').indexOf('sma') === 0) return json(smaAction(p));
     return json({error: 'unknown action'});
   } catch (err) {
     return json({error: String(err && err.message || err)});

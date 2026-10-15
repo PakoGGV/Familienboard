@@ -93,6 +93,20 @@
     return j;
   }
 
+  /* Einrichten der PV-Verbindung: Schlüssel im Text der Anfrage, nicht in der Adresse */
+  async function scriptPost(params, body){
+    if (!PRIV.loaded) await new Promise(r => setTimeout(r, 800));
+    if (!PRIV.scriptUrl) throw mkErr('server_not_connected', 'Kalender-Verbindung fehlt');
+    const q = new URLSearchParams({...params, token: PRIV.token});
+    let res;
+    try { res = await fetch(PRIV.scriptUrl + (PRIV.scriptUrl.includes('?') ? '&' : '?') + q.toString(), {method: 'POST', body: JSON.stringify(body), redirect: 'follow'}); }
+    catch (e) { throw mkErr('upstream_error', 'Das Skript ist nicht erreichbar.'); }
+    let j;
+    try { j = await res.json(); } catch (e) { throw mkErr('upstream_error', 'unknown action'); }
+    if (j && j.error) throw mkErr(j.error === 'token' ? 'needs_reauth' : 'upstream_error', j.error);
+    return j;
+  }
+
   /* Alle Kalender-Abfragen eines Zeitfensters werden zu einer Anfrage gebündelt. */
   const calReg = new Map(); // key -> {input, handlers:Set}
   let calTimer = null;
@@ -260,6 +274,15 @@
     setPriv: d => { PRIV.scriptUrl = String(d.scriptUrl || ''); PRIV.token = String(d.token || ''); PRIV.loaded = true; refreshAllCal(); },
     testCal: async () => { try { await scriptCall({action: 'ping'}); const j = await scriptCall({action: 'calendars'}); return `Verbindung klappt: ${(j.calendars || []).length} Kalender gefunden.`; }
       catch (e) { return e.code === 'needs_reauth' ? 'Das Kennwort stimmt nicht mit dem im Skript überein.' : e.code === 'server_not_connected' ? 'Es ist noch keine Skript-Adresse gespeichert.' : 'Fehler: ' + e.message; } },
+    sma: () => scriptCall({action: 'sma'}),
+    smaSetup: async (refresh, plant) => {
+      try { const j = await scriptPost({action: 'smaSetup'}, {refresh, plant}); const l = j.live || {};
+        return `Verbindung klappt: Sonne gerade ${(Math.max(0, Number(l.pv) || 0) / 1000).toFixed(1).replace('.', ',')} kW.`; }
+      catch (e) { return e.code === 'needs_reauth' ? 'Das Kennwort stimmt nicht mit dem im Skript überein.'
+        : e.code === 'server_not_connected' ? 'Es ist noch keine Skript-Adresse gespeichert.'
+        : e.message === 'sma_relogin' ? 'SMA hat den Schlüssel nicht angenommen. Bitte im Sunny Portal neu anmelden und einen frischen Schlüssel kopieren.'
+        : /unknown action|doPost/.test(e.message) ? 'Das Apps Script ist noch nicht erweitert (Anleitung Abschnitt 8, Schritte 1–4).'
+        : 'Fehler: ' + e.message; } },
     exportAll: async names => { const out = {}; for (const n of names) { const s = await fdb.collection(n).get(); out[n] = {}; s.forEach(d => { out[n][d.id] = d.data(); }); } return out; },
     importAll: async data => { let n = 0; for (const [c, docs] of Object.entries(data || {})) { for (const [id, d] of Object.entries(docs || {})) { await fdb.collection(c).doc(id).set(d); n++; } } return n; },
   };

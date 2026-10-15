@@ -375,6 +375,12 @@ html.night #app{filter:brightness(.35)}
 .login-card input{min-height:52px;border-radius:12px;border:2px solid var(--line);background:var(--surface);color:var(--ink);padding:0 12px;font:inherit}
 .login-err,.login-msg{color:var(--redo);margin:0;min-height:1.2em}
 .login-hint{color:var(--muted);margin:0}
+/* PV-Anlage */
+.pv-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pv-t{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;border-radius:14px;background:color-mix(in srgb,var(--accent) 8%,var(--surface));border:1px solid var(--line)}
+.pv-t .ic{font-size:1.5rem;line-height:1}.pv-t b{font-size:1.25rem}.pv-t small{color:var(--muted);font-size:.85rem}
+.pv-t.feed{background:var(--good-bg)}
+.pv-tip{margin:8px 0 0;padding:10px 12px;border-radius:12px;background:var(--good-bg);font-weight:600}
 /* WebApp: ganze Bildfläche nutzen */
 #app{max-width:none;padding-top:max(14px,env(safe-area-inset-top));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
 @media (min-width:900px) and (orientation:landscape){
@@ -1421,7 +1427,7 @@ function viewToday(){
   const buttons = ps.map(x => `<button class="person" style="--kid:${kidColor(x)}" data-act="person" data-id="${esc(x.id)}" aria-pressed="${x.id === UI.person}"><span class="avatar" aria-hidden="true">${face(x)}</span><span class="nmw"><span class="nm">${esc(x.name)}${x.id === 'papa' && openAsks('papa').length ? ' <span class="badge">?</span>' : ''}</span>${personSub(x) ? `<span class="sub">${esc(personSub(x))}</span>` : ''}</span></button>`).join('');
   const card = !p ? '' : p.adult ? adultCard(p) : kidCard(p);
   return `${departBar(false)}<div class="persons" role="group" aria-label="Wer schaut?">${buttons}</div>
-    <div class="today"><div class="side">${calPanel()}${mealPanel()}${shopPanel()}</div><div class="main">${card}</div></div>`;
+    <div class="today"><div class="side">${pvPanel()}${calPanel()}${mealPanel()}${shopPanel()}</div><div class="main">${card}</div></div>`;
 }
 
 function kidPicker(act, current){
@@ -1532,11 +1538,41 @@ function webappPanel(){
     <div class="row"><div class="field" style="flex:2 1 200px"><label for="wToken">Kennwort</label><input id="wToken" type="password" value="${esc(UI.draft.wToken ?? pv.token ?? '')}"></div>
       <button class="btn primary" data-act="wsave" style="align-self:flex-end">speichern</button><button class="btn" data-act="wtest" style="align-self:flex-end">Verbindung testen</button></div>
     ${UI.wTest ? `<p class="note"><b>${esc(UI.wTest)}</b></p>` : ''}
+    <h3>PV-Anlage (SMA)</h3>
+    <p class="hint">Anmelde-Schlüssel aus dem Sunny Portal einfügen (Anleitung Abschnitt 8). Er geht nur an dein Apps Script und wird im Board nicht gespeichert.</p>
+    <div class="row"><div class="field" style="flex:1 1 150px"><label for="wPlant">Anlagen-Nummer</label><input id="wPlant" inputmode="numeric" value="${esc(UI.draft.wPlant ?? '')}" placeholder="Zahl aus der Portal-Adresse"></div>
+      <div class="field" style="flex:3 1 220px"><label for="wSma">Anmelde-Schlüssel</label><input id="wSma" type="password" autocomplete="off" value="${esc(UI.draft.wSma || '')}"></div>
+      <button class="btn primary" data-act="wsma" style="align-self:flex-end">SMA verbinden</button></div>
+    ${UI.wSma ? `<p class="note"><b>${esc(UI.wSma)}</b></p>` : ''}
     <h3>Daten</h3>
     <div class="row"><button class="btn" data-act="wexport">Daten sichern</button>
       <span class="btn file-btn">Daten einspielen<input type="file" id="wImport" accept="application/json,.json" aria-label="Datei mit Daten wählen"></span></div>
     <p class="hint">„Daten sichern“ lädt eine Datei mit allen Einträgen herunter. „Daten einspielen“ übernimmt eine solche Datei (z. B. die Daten aus dem alten Board).</p>
     <div class="row"><button class="btn no" data-act="wlogout">abmelden</button></div>`;
+}
+/* ---------- PV-Anlage (über das Apps Script) ---------- */
+const PV = {d:null, err:'', busy:false};
+async function pvPoll(){
+  if (!window.FB || !FB.sma || PV.busy || document.hidden || !S.ready || role() !== 'full') return;
+  PV.busy = true;
+  try { const d = await FB.sma(); PV.d = d; PV.err = ''; }
+  catch (e) { PV.err = (e.code === 'server_not_connected' || /^(sma_setup|unknown action)$/.test(e.message)) ? 'off' : (e.message || 'fehler'); if (PV.err === 'off') PV.d = null; }
+  PV.busy = false;
+  if (UI.tab === 'heute' && !UI.rest) requestRender();
+}
+setInterval(pvPoll, 60000); setTimeout(pvPoll, 4000);
+function pvPanel(){
+  if (!window.FB || role() !== 'full' || PV.err === 'off' || (!PV.d && !PV.err)) return '';
+  const msg = PV.err === 'sma_relogin' ? 'Die Verbindung zum Sunny Portal ist abgelaufen: Eltern-Bereich → WebApp → SMA verbinden.' : PV.err ? 'Die PV-Daten sind gerade nicht erreichbar.' : '';
+  if (!PV.d) return `<div class="panel"><h2>Strom</h2><p class="note">${esc(msg)}</p></div>`;
+  const d = PV.d, kw = w => (Math.max(0, num(w)) / 1000).toLocaleString('de-DE', {minimumFractionDigits:1, maximumFractionDigits:1}) + ' kW';
+  const tile = (ic, lbl, v, cls) => `<div class="pv-t ${cls || ''}"><span class="ic" aria-hidden="true">${ic}</span><b>${v}</b><small>${lbl}</small></div>`;
+  const feed = num(d.feed) > 0;
+  const tip = num(d.feed) >= 1000 ? '☀️ Gerade ist Sonnenstrom übrig: guter Moment für Waschmaschine oder Spülmaschine.' : '';
+  const t = String(d.time || '').slice(11, 16);
+  return `<div class="panel"><div class="row" style="justify-content:space-between"><h2>Strom</h2>${t ? `<span class="note">Stand ${esc(t)} Uhr</span>` : ''}</div>
+    <div class="pv-row">${tile('☀️', 'Sonne', kw(d.pv))}${tile('🏠', 'Haus', kw(d.use))}${feed ? tile('↗️', 'ins Netz', kw(d.feed), 'feed') : tile('🔌', 'aus dem Netz', kw(d.grid))}</div>
+    ${tip ? `<p class="pv-tip">${tip}</p>` : ''}${msg ? `<p class="note">${esc(msg)}</p>` : ''}</div>`;
 }
 const ALL_COLLS = ['kids','adults','tasks','rewards','done','adjust','vouchers','parent','allow','ptpl','shop','atasks','adone','plans','muell','meals','todos','mensa','homeask','ktasks','pot','pack','depart','settings','share'];
 function accessList(){
@@ -1930,6 +1966,13 @@ app.addEventListener('click', async e => {
       if (scriptUrl && !/^https:\/\/script\.google\.com\//.test(scriptUrl)) { toast('Die Adresse muss mit https://script.google.com/ beginnen.'); return; }
       if (await safe(() => db.doc('private/config').set({scriptUrl, token}), 'Kalender-Verbindung gespeichert')) { D.wScript = undefined; D.wToken = undefined; FB.setPriv({scriptUrl, token}); FB.reloadPriv(); UI.wTest = await FB.testCal(); render(); }
       return; }
+    case 'wsma': {
+      if (!UI.parentOk) return;
+      const refresh = (D.wSma || '').trim(), plant = (D.wPlant || '').trim();
+      if (!/^\d+$/.test(plant)) { toast('Bitte die Anlagen-Nummer eintragen (die Zahl aus der Portal-Adresse).'); return; }
+      if (!refresh) { toast('Bitte erst den Anmelde-Schlüssel einfügen.'); return; }
+      UI.wSma = 'wird verbunden …'; render();
+      UI.wSma = await FB.smaSetup(refresh, plant); D.wSma = ''; PV.err = ''; render(); pvPoll(); return; }
     case 'wtest': { if (!UI.parentOk) return; UI.wTest = 'wird geprüft …'; render(); UI.wTest = await FB.testCal(); render(); return; }
     case 'wexport': {
       if (!UI.parentOk) return;

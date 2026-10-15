@@ -105,3 +105,35 @@ Melde dich dafür mit dem Google-Konto an, in dem die Familienkalender sichtbar 
 2. Trage die E-Mail-Adresse in den **Firestore-Regeln** in die Liste bei `allowed()` ein und klicke auf **Veröffentlichen**.
 3. Gehe im Board zu **Eltern → Kinder**, tippe beim Kind auf **ändern**, trage die E-Mail-Adresse bei **E-Mail-Adresse des eigenen Kontos** ein und tippe auf **speichern**.
 4. Wer sich mit dieser Adresse anmeldet, sieht nur den Bereich dieses Kindes: eigene Aufgaben und Punkte, eigene Termine, Belohnungen, Essen (abstimmen und eigene Vorschläge) und „für Mama & Papa“ (nur die eigenen Einträge). Eintragungen bei Geschwistern oder Eltern sind dort nicht möglich, den Eltern-Bereich gibt es nicht.
+
+## 8. PV-Anlage (SMA Sunny Portal)
+
+Das Board zeigt auf der Startseite ein Fenster **Strom** mit der aktuellen Leistung (Sonne, Haus, Netz). Die Werte holt dein Apps Script etwa jede Minute aus dem Sunny Portal. Der Weg ist inoffiziell: Wenn SMA das Portal umbaut, fällt die Anzeige aus, bis das Skript angepasst ist.
+
+### Apps Script erweitern (einmalig, ca. 5 Minuten)
+
+1. Öffne dein Projekt „Familien-Board Kalender“ auf <https://script.google.com>.
+2. Klicke links neben **Dateien** auf **+** → **Skript** und nenne die Datei `Sma`. Lösche den Inhalt und füge den Inhalt von `apps-script/Sma.gs` ein.
+3. Öffne `Code.gs`. Suche in `doGet` die Zeile
+   `if (p.action === 'ping') return json({ok: true});`
+   und füge direkt darunter diese Zeile ein:
+   `if (String(p.action || '').indexOf('sma') === 0) return json(smaAction(p));`
+   Dein Kennwort oben bei `TOKEN` bleibt, wie es ist.
+4. Speichern (Disketten-Symbol). Wähle oben die Funktion `smaEinrichten` und klicke auf **Ausführen**. Google fragt nach neuen Rechten (externe Dienste aufrufen, zeitgesteuert ausführen): **Erweitert → Zu „Familien-Board Kalender“ wechseln → Zulassen**.
+5. **Bereitstellen → Bereitstellungen verwalten** → Stift-Symbol → bei **Version** „Neue Version“ wählen → **Bereitstellen**. Die Adresse bleibt gleich.
+
+### Anmelde-Schlüssel holen (am Mac in Safari)
+
+1. Safari → **Einstellungen → Erweitert** → Haken bei **Funktionen für Webentwickler anzeigen**.
+2. Öffne <https://ennexos.sunnyportal.com> und melde dich an, bis dein Dashboard erscheint. Die Zahl in der Adresse nach `sunnyportal.com/` ist deine **Anlagen-Nummer**.
+3. Menü **Entwickler → JavaScript-Konsole einblenden**. Tippe unten in die Konsole:
+   `copy(localStorage.refresh_token)` und drücke die Eingabetaste. Der Schlüssel liegt jetzt in der Zwischenablage. Nicht in Chats oder Mails einfügen.
+4. Wichtig: In diesem Safari-Fenster später **nicht auf „Abmelden“ klicken**. Das würde den Schlüssel ungültig machen. Fenster schließen ist kein Problem.
+
+### Im Board verbinden
+
+1. **Eltern** (PIN) → **WebApp** → **PV-Anlage (SMA)**.
+2. Anlagen-Nummer eintragen, den Schlüssel ins Feld **Anmelde-Schlüssel** einfügen, auf **SMA verbinden** tippen.
+3. Es erscheint „Verbindung klappt: Sonne gerade … kW“. Auf der Startseite ist jetzt das Fenster **Strom** zu sehen.
+
+Das Skript erneuert den Schlüssel bei jeder Abfrage und zusätzlich alle 6 Stunden. Wenn SMA die Sitzung trotzdem einmal beendet, zeigt das Board „Die Verbindung zum Sunny Portal ist abgelaufen“. Dann die Schritte „Anmelde-Schlüssel holen“ und „Im Board verbinden“ wiederholen.
